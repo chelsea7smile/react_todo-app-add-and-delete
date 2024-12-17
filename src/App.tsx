@@ -54,7 +54,6 @@ export const App: React.FC = () => {
       .getTodos()
       .then(setTodos)
       .catch(() => setErrorMessage('Unable to load todos'))
-      .finally(() => setIsLoading(false));
   }, []);
 
   const deleteTodo = useCallback((id: number) => {
