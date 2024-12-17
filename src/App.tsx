@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { UserWarning } from './UserWarning';
 import * as postService from './api/todos';
 import { Todo, Filters } from './types/Todo';
@@ -8,64 +8,68 @@ import Footer from './components/Footer';
 import ErrorNotificationMessage from './components/ErrorNotificationMessage';
 import TodoItem from './components/TodoItem';
 import { CSSTransition, TransitionGroup } from 'react-transition-group';
+import React from 'react';
 
 export const App: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<Filters>(Filters.All);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [tempTodo, setTempTodo] = useState<Todo | null>(null);
   const [deletingTodos, setDeletingTodos] = useState<number[]>([]);
-  const [formTitle, setFormTitle] = useState<string>('');
 
-  const filtered = useMemo(() => filterTodos(todos, activeFilter), [todos, activeFilter]);
+  const filtered = useMemo(
+    () => filterTodos(todos, activeFilter),
+    [todos, activeFilter],
+  );
 
-  const addTodo = async () => {
-    if (formTitle.trim() === '') {
-      setErrorMessage('Title should not be empty');
-      return;
-    }
+  const addTodo = (title: string) => {
+    const newTempTodo = {
+      id: Date.now(), // или используйте другой уникальный идентификатор
+      userId: postService.USER_ID,
+      title,
+      completed: false,
+    };
 
-    const newTempTodo = { id: 0, userId: postService.USER_ID, title: formTitle.trim(), completed: false };
     setTempTodo(newTempTodo);
     setIsLoading(true);
-    setFormTitle('');
 
-    try {
-      const newTodo = await postService.createTodo(formTitle.trim());
-      setTodos(current => [...current, newTodo]);
-    } catch {
-      setErrorMessage('Unable to add a todo');
-    } finally {
-      setTempTodo(null);
-      setIsLoading(false);
-    }
+    return postService
+      .createTodo(title)
+      .then(newTodo => {
+        setDeletingTodos(current => [...current, newTempTodo.id]);
+        setTodos(current => [...current, newTodo]);
+      })
+      .catch(() => {
+        setErrorMessage('Unable to add a todo');
+      })
+      .finally(() => {
+        setTempTodo(null);
+        setIsLoading(false);
+      });
   };
 
-  const loadTodos = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const todosData = await postService.getTodos();
-      setTodos(todosData);
-    } catch {
-      setErrorMessage('Unable to load todos');
-    } finally {
-      setIsLoading(false);
-    }
+  const loadTodos = useCallback(() => {
+    postService
+      .getTodos()
+      .then(setTodos)
+      .catch(() => setErrorMessage('Unable to load todos'))
+      .finally(() => setIsLoading(false));
   }, []);
 
-  const deleteTodo = useCallback(async (id: number) => {
+  const deleteTodo = useCallback((id: number) => {
     setIsLoading(true);
     setDeletingTodos(current => [...current, id]);
-    try {
-      await postService.deleteTodo(id);
-      setTodos(currentTodos => currentTodos.filter(todo => todo.id !== id));
-    } catch {
-      setErrorMessage('Unable to delete a todo');
-      setDeletingTodos([]);
-    } finally {
-      setIsLoading(false);
-    }
+    postService
+      .deleteTodo(id)
+      .then(() => {
+        setTodos(currentTodos => currentTodos.filter(todo => todo.id !== id));
+      })
+      .catch(() => {
+        setErrorMessage('Unable to delete a todo');
+        setDeletingTodos([]);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const handleClearCompleted = () => {
@@ -83,8 +87,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     if (errorMessage) {
-      const timeoutId = setTimeout(() => setErrorMessage(''), 3000);
-      return () => clearTimeout(timeoutId);
+      setTimeout(() => setErrorMessage(''), 3000);
     }
   }, [errorMessage]);
 
@@ -120,7 +123,8 @@ export const App: React.FC = () => {
                 <TodoItem
                   key={tempTodo.id}
                   todo={tempTodo}
-                  isProcessing
+                  onDelete={deleteTodo}
+                  deletingTodos={deletingTodos}
                 />
               </CSSTransition>
             )}
