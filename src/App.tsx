@@ -25,7 +25,7 @@ export const App: React.FC = () => {
 
   const addTodo = (title: string) => {
     const newTempTodo = {
-      id: Date.now(), // или используйте другой уникальный идентификатор
+      id: Date.now(),
       userId: postService.USER_ID,
       title,
       completed: false,

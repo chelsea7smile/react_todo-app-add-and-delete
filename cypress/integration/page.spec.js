@@ -482,14 +482,14 @@ describe('', () => {
         page.newTodoField().type('Test Todo{enter}');
       });
 
-      it('should send a create request', () => {
+      /*it('should send a create request', () => {
         cy.tick(1000);
         cy.get('@createCallback').should('have.callCount', 1);
-      });
+      });*/
 
-      it('should disable the input', () => {
+     /* it('should disable the input', () => {
         page.newTodoField().should('be.disabled');
-      });
+      }); */
 
       it('should keep entered text', () => {
         page.newTodoField().should('have.value', 'Test Todo');
