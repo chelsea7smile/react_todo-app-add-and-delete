@@ -42,10 +42,8 @@ export const App: React.FC = () => {
     try {
       const todosData = await postService.getTodos();
       setTodos(todosData);
-    } catch {
+    } catch (error) {
       setErrorMessage('Unable to load todos');
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
