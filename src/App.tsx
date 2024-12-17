@@ -14,6 +14,7 @@ export const App: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<Filters>(Filters.All);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [tempTodo, setTempTodo] = useState<Todo | null>(null);
   const [deletingTodos, setDeletingTodos] = useState<number[]>([]);
   const [formTitle, setFormTitle] = useState<string>('');
 
@@ -25,14 +26,18 @@ export const App: React.FC = () => {
       return;
     }
 
+    const newTempTodo = { id: 0, userId: postService.USER_ID, title: formTitle.trim(), completed: false };
+    setTempTodo(newTempTodo);
     setIsLoading(true);
+    setFormTitle('');
+
     try {
       const newTodo = await postService.createTodo(formTitle.trim());
       setTodos(current => [...current, newTodo]);
-      setFormTitle('');
     } catch {
       setErrorMessage('Unable to add a todo');
     } finally {
+      setTempTodo(null);
       setIsLoading(false);
     }
   };
@@ -42,8 +47,10 @@ export const App: React.FC = () => {
     try {
       const todosData = await postService.getTodos();
       setTodos(todosData);
-    } catch (error) {
+    } catch {
       setErrorMessage('Unable to load todos');
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -101,12 +108,22 @@ export const App: React.FC = () => {
             {filtered.map(todo => (
               <CSSTransition key={todo.id} timeout={300} classNames="item">
                 <TodoItem
+                  key={todo.id}
                   todo={todo}
                   onDelete={deleteTodo}
                   deletingTodos={deletingTodos}
                 />
               </CSSTransition>
             ))}
+            {tempTodo && (
+              <CSSTransition key={tempTodo.id} timeout={300} classNames="item">
+                <TodoItem
+                  key={tempTodo.id}
+                  todo={tempTodo}
+                  isProcessing
+                />
+              </CSSTransition>
+            )}
           </TransitionGroup>
         </section>
 
