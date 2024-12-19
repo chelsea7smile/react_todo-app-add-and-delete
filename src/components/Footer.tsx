@@ -1,36 +1,44 @@
 import React from 'react';
-import { Filters, Todo } from '../types/Todo';
-import FilterButton from './FilterButton';
+import { FilterStatus } from '../types/FilterStatus';
+import { Dispatch, SetStateAction } from 'react';
+import cn from 'classnames';
 
 type Props = {
-  todos: Todo[];
-  activeFilter: Filters;
-  setActiveFilter: (filter: Filters) => void;
-  handleClearCompleted: () => void;
+  filterStatus: FilterStatus;
+  setFilterStatus: Dispatch<SetStateAction<FilterStatus>>;
+  todosCount: number;
+  isLoading: boolean;
+  onClearCompleted: () => void;
+  completedTodosCount: number;
 };
 
-const Footer: React.FC<Props> = ({
-  todos,
-  activeFilter,
-  setActiveFilter,
-  handleClearCompleted,
+export const Footer: React.FC<Props> = ({
+  filterStatus,
+  setFilterStatus,
+  todosCount,
+  isLoading,
+  onClearCompleted,
+  completedTodosCount,
 }) => {
-  const activeTodos = todos.filter(todo => !todo.completed);
-
   return (
     <footer className="todoapp__footer" data-cy="Footer">
       <span className="todo-count" data-cy="TodosCounter">
-        {activeTodos.length} items left
+        {todosCount} items left
       </span>
 
       <nav className="filter" data-cy="Filter">
-        {Object.values(Filters).map(filterItem => (
-          <FilterButton
-            key={filterItem}
-            activeFilter={activeFilter}
-            setActiveFilter={setActiveFilter}
-            filterItem={filterItem}
-          />
+        {Object.values(FilterStatus).map(filter => (
+          <a
+            key={filter}
+            href={`#/${filter === FilterStatus.All ? '' : filter}`}
+            className={cn('filter__link', {
+              selected: filterStatus === filter,
+            })}
+            data-cy={`FilterLink${filter}`}
+            onClick={() => setFilterStatus(filter)}
+          >
+            {filter}
+          </a>
         ))}
       </nav>
 
@@ -38,13 +46,11 @@ const Footer: React.FC<Props> = ({
         type="button"
         className="todoapp__clear-completed"
         data-cy="ClearCompletedButton"
-        disabled={todos.every(todo => !todo.completed)}
-        onClick={handleClearCompleted}
+        disabled={completedTodosCount === 0 || isLoading}
+        onClick={onClearCompleted}
       >
         Clear completed
       </button>
     </footer>
   );
 };
-
-export default Footer;

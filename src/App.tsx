@@ -1,147 +1,146 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { UserWarning } from './UserWarning';
-import * as postService from './api/todos';
-import { Todo, Filters } from './types/Todo';
-import { filterTodos } from './utils/service';
-import Header from './components/Header';
-import Footer from './components/Footer';
-import ErrorNotificationMessage from './components/ErrorNotificationMessage';
-import TodoItem from './components/TodoItem';
-import { CSSTransition, TransitionGroup } from 'react-transition-group';
-import React from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Header } from './components/Header';
+import { Footer } from './components/Footer';
+import { ErrorNotification } from './components/ErrorNotification';
+import { Todo } from './types/Todo';
+import { getTodos, addTodo, USER_ID, deleteTodo } from './api/todos';
+import { ErrorTypes } from './types/ErrorTypes';
+import { TodoItem } from './components/TodoItem';
+import { FilterStatus } from './types/FilterStatus';
 
 export const App: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<Filters>(Filters.All);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [errorMessage, setErrorMessage] = useState<ErrorTypes>(
+    ErrorTypes.Empty,
+  );
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>(
+    FilterStatus.All,
+  );
   const [tempTodo, setTempTodo] = useState<Todo | null>(null);
-  const [deletingTodos, setDeletingTodos] = useState<number[]>([]);
+  const [loadingTodoIds, setLoadingTodoIds] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const filtered = useMemo(
-    () => filterTodos(todos, activeFilter),
-    [todos, activeFilter],
+  const filteredTodos = useMemo(
+    () =>
+      todos.filter(todo => {
+        if (filterStatus === FilterStatus.All) {
+          return true;
+        }
+
+        return filterStatus === FilterStatus.Active
+          ? !todo.completed
+          : todo.completed;
+      }),
+    [todos, filterStatus],
   );
 
-  const addTodo = (title: string) => {
-    const newTempTodo = {
-      id: Date.now(),
-      userId: postService.USER_ID,
-      title,
-      completed: false,
-    };
-
-    setTempTodo(newTempTodo);
+  const completedTodosCount = useMemo(
+    () => todos.filter(todo => todo.completed).length,
+    [todos],
+  );
+  const todosCount = useMemo(
+    () => todos.filter(todo => !todo.completed).length,
+    [todos],
+  );
+  const onAddTodo = async (todoTitle: string) => {
+    setTempTodo({ id: 0, title: todoTitle, completed: false, userId: USER_ID });
     setIsLoading(true);
+    try {
+      const newTodo = await addTodo({ title: todoTitle, completed: false });
 
-    return postService
-      .createTodo(title)
-      .then(newTodo => {
-        setDeletingTodos(current => [...current, newTempTodo.id]);
-        setTodos(current => [...current, newTodo]);
-      })
-      .catch(() => {
-        setErrorMessage('Unable to add a todo');
-      })
-      .finally(() => {
-        setTempTodo(null);
-        setIsLoading(false);
-      });
+      setTodos(prev => [...prev, newTodo]);
+    } catch (error) {
+      setErrorMessage(ErrorTypes.AddTodo);
+      throw error;
+    } finally {
+      setTempTodo(null);
+      setIsLoading(false);
+    }
   };
 
-  const loadTodos = useCallback(() => {
-    postService
-      .getTodos()
-      .then(setTodos)
-      .catch(() => setErrorMessage('Unable to load todos'))
-  }, []);
-
-  const deleteTodo = useCallback((id: number) => {
+  const onDeleteTodo = async (todoId: number) => {
+    setLoadingTodoIds(prev => [...prev, todoId]);
     setIsLoading(true);
-    setDeletingTodos(current => [...current, id]);
-    postService
-      .deleteTodo(id)
-      .then(() => {
-        setTodos(currentTodos => currentTodos.filter(todo => todo.id !== id));
-      })
-      .catch(() => {
-        setErrorMessage('Unable to delete a todo');
-        setDeletingTodos([]);
-      })
-      .finally(() => setIsLoading(false));
-  }, []);
+    try {
+      await deleteTodo(todoId);
+      setTodos(prev => prev.filter(todo => todo.id !== todoId));
+    } catch (error) {
+      setErrorMessage(ErrorTypes.DeleteTodo);
+      throw error;
+    } finally {
+      setLoadingTodoIds(prev => prev.filter(id => id !== todoId));
+      setIsLoading(false);
+    }
+  };
 
-  const handleClearCompleted = () => {
+  const onClearCompleted = () => {
     const completedTodos = todos.filter(todo => todo.completed);
 
     completedTodos.forEach(todo => {
-      setDeletingTodos(current => [...current, todo.id]);
-      deleteTodo(todo.id);
+      onDeleteTodo(todo.id);
     });
   };
 
   useEffect(() => {
-    loadTodos();
+    (async () => {
+      setIsLoading(true);
+      try {
+        const data = await getTodos();
+
+        setTodos(data);
+      } catch (error) {
+        setErrorMessage(ErrorTypes.Loading);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
-
-  useEffect(() => {
-    if (errorMessage) {
-      setTimeout(() => setErrorMessage(''), 3000);
-    }
-  }, [errorMessage]);
-
-  if (!postService.USER_ID) {
-    return <UserWarning />;
-  }
 
   return (
     <div className="todoapp">
       <h1 className="todoapp__title">todos</h1>
       <div className="todoapp__content">
         <Header
-          todos={todos}
-          onCreateTodo={addTodo}
-          isLoading={isLoading}
+          onAddTodo={onAddTodo}
           setErrorMessage={setErrorMessage}
+          isLoading={isLoading}
         />
 
-        <section className="todoapp__main" data-cy="TodoList">
-          <TransitionGroup>
-            {filtered.map(todo => (
-              <CSSTransition key={todo.id} timeout={300} classNames="item">
+        {todos.length > 0 && (
+          <>
+            <section className="todoapp__main" data-cy="TodoList">
+              {filteredTodos.map(todo => (
                 <TodoItem
                   key={todo.id}
                   todo={todo}
-                  onDelete={deleteTodo}
-                  deletingTodos={deletingTodos}
+                  onDeleteTodo={onDeleteTodo}
+                  isLoading={loadingTodoIds.includes(todo.id)}
                 />
-              </CSSTransition>
-            ))}
-            {tempTodo && (
-              <CSSTransition key={tempTodo.id} timeout={300} classNames="item">
+              ))}
+              {tempTodo && (
                 <TodoItem
-                  key={tempTodo.id}
                   todo={tempTodo}
-                  onDelete={deleteTodo}
-                  deletingTodos={deletingTodos}
+                  onDeleteTodo={onDeleteTodo}
+                  isLoading
                 />
-              </CSSTransition>
-            )}
-          </TransitionGroup>
-        </section>
-
-        {todos.length > 0 && (
-          <Footer
-            todos={todos}
-            activeFilter={activeFilter}
-            setActiveFilter={setActiveFilter}
-            handleClearCompleted={handleClearCompleted}
-          />
+              )}
+            </section>
+            <Footer
+              filterStatus={filterStatus}
+              setFilterStatus={setFilterStatus}
+              todosCount={todosCount}
+              isLoading={isLoading}
+              onClearCompleted={onClearCompleted}
+              completedTodosCount={completedTodosCount}
+            />
+          </>
         )}
       </div>
-      <ErrorNotificationMessage
-        errorMessage={errorMessage}
-        setErrorMessage={setErrorMessage}
+
+      <ErrorNotification
+        data-cy="ErrorNotification"
+        error={errorMessage}
+        setError={setErrorMessage}
       />
     </div>
   );
